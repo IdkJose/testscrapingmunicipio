@@ -103,38 +103,67 @@ export default function Home() {
 
     const token = localStorage.getItem('auth_token');
 
-    // 1. Municipio de Quito
+    // 1. Municipio de Quito (Consulta Directa Cliente desde IP local del usuario)
     try {
-      const res = await fetch(`${API_BASE}/persona/consultar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          strIdentificacion: numDoc,
-          strTipoIdentificacion: tipo,
-          strAccion: '1',
-        }),
-      });
+      let data = null;
 
-      if (res.status === 401) {
-        handleLogout();
-        throw new Error('Sesión expirada. Inicia sesión de nuevo.');
+      // Petición directa desde el navegador del usuario (usa su IP de Ecuador)
+      try {
+        const directRes = await fetch('https://psmbackend.quito.gob.ec/api/persona/consultar-persona', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
+          },
+          body: JSON.stringify({
+            strIdentificacion: numDoc,
+            strTipoIdentificacion: tipo,
+            strAccion: '1',
+          }),
+        });
+
+        if (directRes.ok) {
+          data = await directRes.json();
+        }
+      } catch (directErr) {
+        console.warn('Petición directa de IP falló, intentando por el Backend...', directErr);
       }
 
-      const data = await res.json();
-      if (res.ok && (data.PE_DENOMINACION || data.PE_NOMBRES)) {
+      // Si la petición directa falló o CORS la bloqueó, usamos el Backend como respaldo
+      if (!data || (!data.PE_DENOMINACION && !data.PE_NOMBRES)) {
+        const res = await fetch(`${API_BASE}/persona/consultar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            strIdentificacion: numDoc,
+            strTipoIdentificacion: tipo,
+            strAccion: '1',
+          }),
+        });
+
+        if (res.status === 401) {
+          handleLogout();
+          throw new Error('Sesión expirada. Inicia sesión de nuevo.');
+        }
+
+        data = await res.json();
+      }
+
+      if (data && (data.PE_DENOMINACION || data.PE_NOMBRES)) {
         setPersona(data);
       } else {
-        setError('No se encontraron registros en el Municipio para este documento.');
+        setError('No se encontraron registros para este documento.');
       }
     } catch (err: any) {
       setError(err.message || 'Error al conectar');
     } finally {
       setLoading(false);
     }
+
 
     // 2. SRI Catastro Oficial
     try {
