@@ -7,8 +7,8 @@ RUN npm ci
 
 COPY . .
 
-# Argumento para pasar la URL de producción del API en tiempo de compilación
-ARG NEXT_PUBLIC_API_URL
+# URL por defecto si Render no pasa la variable en el ARG
+ARG NEXT_PUBLIC_API_URL=https://testscrapingmunicipio.onrender.com/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 RUN npm run build
@@ -20,6 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV NEXT_PUBLIC_API_URL=https://testscrapingmunicipio.onrender.com/api
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
