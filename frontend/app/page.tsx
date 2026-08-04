@@ -51,7 +51,8 @@ interface AntData {
 type TipoDocumento = 'C' | 'R' | 'P';
 type TabActiva = 'municipio' | 'sri' | 'supercias' | 'ant';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://testscrapingmunicipio.onrender.com/api';
+
 
 export default function Home() {
 
