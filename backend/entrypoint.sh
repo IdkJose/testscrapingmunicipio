@@ -13,12 +13,8 @@ if ! grep -q "APP_KEY=" .env; then
     echo "APP_KEY=base64:GK850+fYpWu0R1MNrAqgjZkWjZhWrIzTVqLfFMhFRnY=" >> .env
 fi
 
-# Si existe DATABASE_URL, inyectar variables de PostgreSQL requeridas por Laravel
-if [ -n "$DATABASE_URL" ]; then
-    echo "Configurando conexion PostgreSQL..."
-    echo "DB_CONNECTION=pgsql" >> .env
-    echo "DB_URL=$DATABASE_URL" >> .env
-fi
+# Asegurar DB_CONNECTION=pgsql en .env
+echo "DB_CONNECTION=pgsql" >> .env
 
 # Correr migraciones automáticamente en PostgreSQL
 echo "Ejecutando migraciones de base de datos..."
