@@ -13,8 +13,19 @@ if ! grep -q "APP_KEY=" .env; then
     echo "APP_KEY=base64:GK850+fYpWu0R1MNrAqgjZkWjZhWrIzTVqLfFMhFRnY=" >> .env
 fi
 
-# Asegurar DB_CONNECTION=pgsql en .env
-echo "DB_CONNECTION=pgsql" >> .env
+# Inyectar variables de entorno de base de datos desde Render hacia .env
+if [ -n "$DB_HOST" ]; then
+    echo "Configurando conexion PostgreSQL en .env..."
+    echo "DB_CONNECTION=${DB_CONNECTION:-pgsql}" >> .env
+    echo "DB_HOST=$DB_HOST" >> .env
+    echo "DB_PORT=${DB_PORT:-5432}" >> .env
+    echo "DB_DATABASE=$DB_DATABASE" >> .env
+    echo "DB_USERNAME=$DB_USERNAME" >> .env
+    echo "DB_PASSWORD=$DB_PASSWORD" >> .env
+fi
+
+# Limpiar cache de configuracion previa
+php artisan config:clear || true
 
 # Correr migraciones automáticamente en PostgreSQL
 echo "Ejecutando migraciones de base de datos..."
