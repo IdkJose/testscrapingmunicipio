@@ -47,6 +47,7 @@ interface AntData {
   valorPendientePago?: number;
 }
 
+
 type TipoDocumento = 'C' | 'R' | 'P';
 type TabActiva = 'municipio' | 'sri' | 'supercias' | 'ant';
 
