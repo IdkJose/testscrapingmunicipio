@@ -1,0 +1,31 @@
+services:
+  # 1. Base de datos
+  database:
+    image: postgres:16-alpine
+    container_name: laravel_db
+    restart: always
+    environment:
+      POSTGRES_DB: test_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  # 2. Backend (Laravel)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: laravel_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/html
+    depends_on:
+      - database
+
+volumes:
+  db_data:
