@@ -12,6 +12,9 @@ WORKDIR /var/www/html
 
 COPY . .
 
+# Instalar paquetes de composer en la imagen de producción
+RUN composer install --no-interaction --optimize-autoloader --no-dev
+
 # Dar permisos a storage y bootstrap/cache (Esencial en Render)
 RUN chmod -R 777 storage bootstrap/cache
 
