@@ -18,6 +18,9 @@ RUN composer install --no-interaction --optimize-autoloader --no-dev
 # Dar permisos a storage y bootstrap/cache (Esencial en Render)
 RUN chmod -R 777 storage bootstrap/cache
 
+# Dar permisos de ejecución al script de arranque
+RUN chmod +x entrypoint.sh
+
 EXPOSE 8000
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+ENTRYPOINT ["/var/www/html/entrypoint.sh"]
