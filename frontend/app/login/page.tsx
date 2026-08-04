@@ -28,6 +28,7 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      console.log('🔗 Conectando con API Login en URL:', `${API_BASE}/login`);
       const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: {
@@ -48,11 +49,13 @@ export default function LoginPage() {
 
       router.push('/');
     } catch (err: any) {
-      setError(err.message || 'Error de conexión');
+      console.error('❌ Error detallado de conexión:', err);
+      setError(`${err.message || 'Error de conexión'} (Intentando a: ${API_BASE}/login)`);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleSolicitarAcceso = async (e: React.FormEvent) => {
     e.preventDefault();
