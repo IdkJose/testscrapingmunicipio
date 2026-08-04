@@ -51,7 +51,10 @@ interface AntData {
 type TipoDocumento = 'C' | 'R' | 'P';
 type TabActiva = 'municipio' | 'sri' | 'supercias' | 'ant';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+
 export default function Home() {
+
   const [identificacion, setIdentificacion] = useState('');
   const [tipoDoc, setTipoDoc] = useState<TipoDocumento>('C');
   const [persona, setPersona] = useState<Persona | null>(null);
@@ -101,7 +104,7 @@ export default function Home() {
 
     // 1. Municipio de Quito
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/persona/consultar', {
+      const res = await fetch(`${API_BASE}/persona/consultar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +137,7 @@ export default function Home() {
 
     // 2. SRI Catastro Oficial
     try {
-      const resSri = await fetch('http://127.0.0.1:8000/api/sri/consultar', {
+      const resSri = await fetch(`${API_BASE}/sri/consultar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +161,7 @@ export default function Home() {
 
     // 3. SUPERCIAS
     try {
-      const resSuper = await fetch('http://127.0.0.1:8000/api/supercias/consultar', {
+      const resSuper = await fetch(`${API_BASE}/supercias/consultar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +185,7 @@ export default function Home() {
 
     // 4. ANT (Agencia Nacional de Tránsito)
     try {
-      const resAnt = await fetch('http://127.0.0.1:8000/api/ant/consultar', {
+      const resAnt = await fetch(`${API_BASE}/ant/consultar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,6 +194,7 @@ export default function Home() {
         },
         body: JSON.stringify({ cedula: numDoc }),
       });
+
 
       if (resAnt.ok) {
         const dataAnt = await resAnt.json();
