@@ -13,12 +13,13 @@ if ! grep -q "APP_KEY=" .env; then
     echo "APP_KEY=base64:GK850+fYpWu0R1MNrAqgjZkWjZhWrIzTVqLfFMhFRnY=" >> .env
 fi
 
-# Generar clave de producción por seguridad
-php artisan key:generate --force || true
-
-# Correr migraciones automáticamente si hay BD configurada
+# Correr migraciones automáticamente en PostgreSQL
 echo "Ejecutando migraciones de base de datos..."
 php artisan migrate --force || true
+
+# Crear usuario administrador por defecto si no existe
+echo "Creando usuario administrador si no existe..."
+php artisan tinker --execute="if(!\App\Models\User::where('email', 'admin@test.com')->exists()) { \App\Models\User::create(['name' => 'Administrador', 'email' => 'admin@test.com', 'password' => \Illuminate\Support\Facades\Hash::make('12345678')]); }" || true
 
 # Iniciar servidor Laravel
 echo "Iniciando servidor Laravel..."
