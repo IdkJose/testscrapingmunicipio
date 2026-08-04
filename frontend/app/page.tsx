@@ -17,13 +17,52 @@ interface Persona {
   PE_TIP_PERSONA?: string;
 }
 
+interface SriData {
+  numeroRuc?: string;
+  razonSocial?: string;
+  estadoContribuyenteRuc?: string;
+  actividadEconomicaPrincipal?: string;
+  tipoContribuyente?: string;
+  regimen?: string;
+  obligadoLlevarContabilidad?: string;
+  agenteRetencion?: string;
+  contribuyenteEspecial?: string;
+  contribuyenteFantasma?: string;
+  informacionFechasContribuyente?: {
+    fechaInicioActividades?: string;
+  };
+}
+
+interface CompaniaSupercias {
+  expediente?: string;
+  nombreCompania?: string;
+  cargo?: string;
+  estadoCompania?: string;
+}
+
+interface AntData {
+  puntos?: number;
+  tipoLicencia?: string;
+  totalMultas?: number;
+  valorPendientePago?: number;
+}
+
 type TipoDocumento = 'C' | 'R' | 'P';
+type TabActiva = 'municipio' | 'sri' | 'supercias' | 'ant';
 
 export default function Home() {
   const [identificacion, setIdentificacion] = useState('');
   const [tipoDoc, setTipoDoc] = useState<TipoDocumento>('C');
   const [persona, setPersona] = useState<Persona | null>(null);
+  const [sri, setSri] = useState<SriData | null>(null);
+  const [companias, setCompanias] = useState<CompaniaSupercias[]>([]);
+  const [ant, setAnt] = useState<AntData | null>(null);
+  const [tabActiva, setTabActiva] = useState<TabActiva>('municipio');
+
   const [loading, setLoading] = useState(false);
+  const [loadingSri, setLoadingSri] = useState(false);
+  const [loadingSupercias, setLoadingSupercias] = useState(false);
+  const [loadingAnt, setLoadingAnt] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState('');
 
@@ -46,13 +85,20 @@ export default function Home() {
     router.push('/login');
   };
 
-  const consultarPersona = async (numDoc: string, tipo: TipoDocumento) => {
+  const consultarTodo = async (numDoc: string, tipo: TipoDocumento) => {
     setLoading(true);
+    setLoadingSri(true);
+    setLoadingSupercias(true);
+    setLoadingAnt(true);
     setError(null);
     setPersona(null);
+    setSri(null);
+    setCompanias([]);
+    setAnt(null);
 
     const token = localStorage.getItem('auth_token');
 
+    // 1. Municipio de Quito
     try {
       const res = await fetch('http://127.0.0.1:8000/api/persona/consultar', {
         method: 'POST',
@@ -74,16 +120,87 @@ export default function Home() {
       }
 
       const data = await res.json();
-
-      if (!res.ok || (!data.PE_DENOMINACION && !data.PE_NOMBRES)) {
-        throw new Error('No se encontraron registros para el documento ingresado.');
+      if (res.ok && (data.PE_DENOMINACION || data.PE_NOMBRES)) {
+        setPersona(data);
+      } else {
+        setError('No se encontraron registros en el Municipio para este documento.');
       }
-
-      setPersona(data);
     } catch (err: any) {
-      setError(err.message || 'Error en el servidor');
+      setError(err.message || 'Error al conectar');
     } finally {
       setLoading(false);
+    }
+
+    // 2. SRI Catastro Oficial
+    try {
+      const resSri = await fetch('http://127.0.0.1:8000/api/sri/consultar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ numDoc }),
+      });
+
+      if (resSri.ok) {
+        const dataSri = await resSri.json();
+        if (dataSri.existe && dataSri.datos) {
+          setSri(dataSri.datos);
+        }
+      }
+    } catch (err) {
+      console.error('Error al consultar el SRI:', err);
+    } finally {
+      setLoadingSri(false);
+    }
+
+    // 3. SUPERCIAS
+    try {
+      const resSuper = await fetch('http://127.0.0.1:8000/api/supercias/consultar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ numDoc }),
+      });
+
+      if (resSuper.ok) {
+        const dataSuper = await resSuper.json();
+        if (dataSuper.companias && Array.isArray(dataSuper.companias)) {
+          setCompanias(dataSuper.companias);
+        }
+      }
+    } catch (err) {
+      console.error('Error al consultar SUPERCIAS:', err);
+    } finally {
+      setLoadingSupercias(false);
+    }
+
+    // 4. ANT (Agencia Nacional de Tránsito)
+    try {
+      const resAnt = await fetch('http://127.0.0.1:8000/api/ant/consultar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cedula: numDoc }),
+      });
+
+      if (resAnt.ok) {
+        const dataAnt = await resAnt.json();
+        if (dataAnt.datos) {
+          setAnt(dataAnt.datos);
+        }
+      }
+    } catch (err) {
+      console.error('Error al consultar la ANT:', err);
+    } finally {
+      setLoadingAnt(false);
     }
   };
 
@@ -93,7 +210,7 @@ export default function Home() {
       (tipoDoc === 'C' && docClean.length === 10) ||
       (tipoDoc === 'R' && docClean.length === 13)
     ) {
-      if (!loading) consultarPersona(docClean, tipoDoc);
+      if (!loading) consultarTodo(docClean, tipoDoc);
     }
   }, [identificacion, tipoDoc]);
 
@@ -110,13 +227,16 @@ export default function Home() {
     setTipoDoc(nuevoTipo);
     setIdentificacion('');
     setPersona(null);
+    setSri(null);
+    setCompanias([]);
+    setAnt(null);
     setError(null);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (identificacion.trim()) {
-      consultarPersona(identificacion.trim(), tipoDoc);
+      consultarTodo(identificacion.trim(), tipoDoc);
     }
   };
 
@@ -130,7 +250,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <span className="text-lg">🏛️</span>
             <span className="font-semibold text-sm text-zinc-100 tracking-tight">
-              Consulta de Datos Ciudadanos / RUC
+              Perfilador 360° (Municipio + SRI + SUPERCIAS + ANT)
             </span>
           </div>
 
@@ -153,7 +273,6 @@ export default function Home() {
         
         {/* Formulario */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-sm space-y-4">
-          
           <div className="flex gap-2 border-b border-zinc-800 pb-3">
             <button
               type="button"
@@ -237,84 +356,281 @@ export default function Home() {
           </div>
         )}
 
-        {/* Ficha Dinámica */}
-        {persona ? (
+        {/* Resultados */}
+        {(persona || sri) && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-sm space-y-6">
-            <div className="border-b border-zinc-800 pb-4">
-              <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
-                {persona.PE_TIP_PERSONA === 'J' ? '🏢 Persona Jurídica (Empresa)' : '👤 Persona Natural'}
-              </span>
-              <h2 className="text-xl font-bold text-zinc-100 mt-1">
-                {persona.PE_DENOMINACION || `${persona.PE_NOMBRES} ${persona.PE_APELLIDOS}`}
-              </h2>
-              <p className="text-xs text-zinc-400 font-mono mt-0.5">
-                Doc.: {persona.PE_NUM_IDENTIFICACION || identificacion} ({persona.PE_TIP_IDENTIFICACION || tipoDoc})
-              </p>
+            
+            {/* Pestañas */}
+            <div className="flex gap-4 border-b border-zinc-800 pb-3">
+              <button
+                onClick={() => setTabActiva('municipio')}
+                className={`text-xs font-semibold pb-1.5 transition-colors border-b-2 ${
+                  tabActiva === 'municipio'
+                    ? 'border-zinc-100 text-zinc-100'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                🏛️ Ficha Municipal
+              </button>
+
+              <button
+                onClick={() => setTabActiva('sri')}
+                className={`text-xs font-semibold pb-1.5 transition-colors border-b-2 flex items-center gap-1.5 ${
+                  tabActiva === 'sri'
+                    ? 'border-zinc-100 text-zinc-100'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <span>🧾 Ficha SRI</span>
+                <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {loadingSri ? '...' : sri ? sri.estadoContribuyenteRuc : 'N/A'}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setTabActiva('supercias')}
+                className={`text-xs font-semibold pb-1.5 transition-colors border-b-2 flex items-center gap-1.5 ${
+                  tabActiva === 'supercias'
+                    ? 'border-zinc-100 text-zinc-100'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <span>🏢 SUPERCIAS</span>
+                <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {loadingSupercias ? '...' : companias.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setTabActiva('ant')}
+                className={`text-xs font-semibold pb-1.5 transition-colors border-b-2 flex items-center gap-1.5 ${
+                  tabActiva === 'ant'
+                    ? 'border-zinc-100 text-zinc-100'
+                    : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <span>🚗 ANT (Licencia/Puntos)</span>
+                <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px]">
+                  {loadingAnt ? '...' : ant ? `${ant.puntos || 30} pts` : 'N/A'}
+                </span>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              {persona.PE_TIP_PERSONA && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Tipo de Persona</span>
-                  <span className="font-medium text-zinc-200">
-                    {persona.PE_TIP_PERSONA === 'J' ? '🏢 Jurídica (Empresa)' : '👤 Natural'}
+            {/* TAB 1: Municipio */}
+            {tabActiva === 'municipio' && persona && (
+              <div className="space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                    {persona.PE_TIP_PERSONA === 'J' ? '🏢 Persona Jurídica' : '👤 Persona Natural'}
                   </span>
+                  <h2 className="text-lg font-bold text-zinc-100 mt-0.5">
+                    {persona.PE_DENOMINACION || `${persona.PE_NOMBRES} ${persona.PE_APELLIDOS}`}
+                  </h2>
                 </div>
-              )}
 
-              {persona.PE_DENOMINACION && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Denominación / Razón Social</span>
-                  <span className="font-medium text-zinc-200">{persona.PE_DENOMINACION}</span>
-                </div>
-              )}
-
-              {persona.PE_NOMBRES && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Nombres</span>
-                  <span className="font-medium text-zinc-200">{persona.PE_NOMBRES}</span>
-                </div>
-              )}
-
-              {persona.PE_APELLIDOS && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Apellidos</span>
-                  <span className="font-medium text-zinc-200">{persona.PE_APELLIDOS}</span>
-                </div>
-              )}
-
-              {persona.PE_ESTADO_CIVIL && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Estado Civil</span>
-                  <span className="font-medium text-zinc-200">{persona.PE_ESTADO_CIVIL}</span>
-                </div>
-              )}
-
-              {persona.PE_FECHA_NACIMIENTO && (
-                <div className="bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Fecha de Nacimiento</span>
-                  <span className="font-medium text-zinc-200">
-                    {persona.PE_FECHA_NACIMIENTO?.split('T')[0]}
-                  </span>
-                </div>
-              )}
-
-              {persona.PE_NOMBRE_CONYUGE && (
-                <div className="sm:col-span-2 bg-zinc-950/60 p-3.5 rounded-lg border border-zinc-800/60">
-                  <span className="text-xs text-zinc-500 block">Cónyuge</span>
-                  <span className="font-medium text-zinc-200">{persona.PE_NOMBRE_CONYUGE}</span>
-                  {persona.PE_CEDULA_CONYUGE && (
-                    <span className="text-xs text-zinc-500 font-mono block mt-0.5">
-                      C.I: {persona.PE_CEDULA_CONYUGE}
-                    </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {persona.PE_DENOMINACION && (
+                    <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Razón Social</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_DENOMINACION}</span>
+                    </div>
+                  )}
+                  {persona.PE_NOMBRES && (
+                    <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Nombres</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_NOMBRES}</span>
+                    </div>
+                  )}
+                  {persona.PE_APELLIDOS && (
+                    <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Apellidos</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_APELLIDOS}</span>
+                    </div>
+                  )}
+                  {persona.PE_ESTADO_CIVIL && (
+                    <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Estado Civil</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_ESTADO_CIVIL}</span>
+                    </div>
+                  )}
+                  {persona.PE_FECHA_NACIMIENTO && (
+                    <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Fecha Nacimiento</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_FECHA_NACIMIENTO?.split('T')[0]}</span>
+                    </div>
+                  )}
+                  {persona.PE_NOMBRE_CONYUGE && (
+                    <div className="sm:col-span-2 bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                      <span className="text-zinc-500 block">Cónyuge</span>
+                      <span className="font-medium text-zinc-200">{persona.PE_NOMBRE_CONYUGE}</span>
+                      {persona.PE_CEDULA_CONYUGE && (
+                        <span className="text-[10px] text-zinc-500 font-mono block mt-0.5">
+                          C.I: {persona.PE_CEDULA_CONYUGE}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-zinc-900/40 border border-dashed border-zinc-800 rounded-xl p-10 text-center text-zinc-500 text-xs">
-            Selecciona el tipo de documento e ingresa el número para consultar.
+              </div>
+            )}
+
+            {/* TAB 2: SRI */}
+            {tabActiva === 'sri' && (
+              <div className="space-y-4">
+                {loadingSri ? (
+                  <p className="text-xs text-zinc-400">Obteniendo ficha completa del SRI...</p>
+                ) : sri ? (
+                  <div className="space-y-4">
+                    <div className="border-b border-zinc-800 pb-3 flex justify-between items-start">
+                      <div>
+                        <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                          ESTADO RUC: {sri.estadoContribuyenteRuc}
+                        </span>
+                        <h2 className="text-lg font-bold text-zinc-100 mt-0.5">
+                          {sri.razonSocial}
+                        </h2>
+                        <p className="text-xs text-zinc-400 font-mono">RUC: {sri.numeroRuc}</p>
+                      </div>
+                      <span className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] font-medium px-2.5 py-1 rounded-full">
+                        {sri.tipoContribuyente}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="sm:col-span-2 bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Actividad Económica Principal</span>
+                        <span className="font-medium text-zinc-200">{sri.actividadEconomicaPrincipal || 'No especificada'}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Régimen Tributario</span>
+                        <span className="font-medium text-zinc-200">{sri.regimen || 'GENERAL'}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Obligado a Llevar Contabilidad</span>
+                        <span className="font-semibold text-zinc-200">{sri.obligadoLlevarContabilidad}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Agente de Retención</span>
+                        <span className="font-medium text-zinc-200">{sri.agenteRetencion}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Contribuyente Especial</span>
+                        <span className="font-medium text-zinc-200">{sri.contribuyenteEspecial}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Contribuyente Fantasma</span>
+                        <span className={`font-semibold ${sri.contribuyenteFantasma === 'SI' ? 'text-red-400' : 'text-emerald-400'}`}>
+                          {sri.contribuyenteFantasma}
+                        </span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Fecha Inicio de Actividades</span>
+                        <span className="font-medium text-zinc-200">
+                          {sri.informacionFechasContribuyente?.fechaInicioActividades?.split(' ')[0] || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded-lg">
+                    No se registra información tributaria en el SRI para este documento.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: SUPERCIAS */}
+            {tabActiva === 'supercias' && (
+              <div className="space-y-4">
+                {loadingSupercias ? (
+                  <p className="text-xs text-zinc-400">Consultando registros en la Superintendencia de Compañías...</p>
+                ) : companias.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-zinc-400 mb-2">
+                      Se registraron <strong>{companias.length}</strong> participaciones o cargos en compañías:
+                    </p>
+                    {companias.map((c, idx) => (
+                      <div key={idx} className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 space-y-1 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-blue-400 text-sm">
+                            {c.nombreCompania}
+                          </span>
+                          <span className="text-[10px] bg-zinc-800 border border-zinc-700 px-2.5 py-0.5 rounded-full text-zinc-300">
+                            {c.cargo || 'Socio / Accionista'}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-[11px] text-zinc-400 pt-1">
+                          <span>Expediente: {c.expediente || 'N/A'}</span>
+                          <span>Estado: {c.estadoCompania || 'ACTIVA'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded-lg">
+                    No se registran cargos ni participaciones accionarias en la Superintendencia de Compañías.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: ANT */}
+            {tabActiva === 'ant' && (
+              <div className="space-y-4">
+                {loadingAnt ? (
+                  <p className="text-xs text-zinc-400">Consultando estado de puntos y licencias en la ANT...</p>
+                ) : ant ? (
+                  <div className="space-y-4">
+                    <div className="border-b border-zinc-800 pb-3 flex justify-between items-start">
+                      <div>
+                        <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                          LICENCIA Y TRÁNSITO
+                        </span>
+                        <h2 className="text-lg font-bold text-zinc-100 mt-0.5">
+                          Agencia Nacional de Tránsito
+                        </h2>
+                      </div>
+                      <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold px-3 py-1 rounded-full">
+                        {ant.puntos ?? 30} / 30 Puntos
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Puntos en la Licencia</span>
+                        <span className="font-bold text-emerald-400 text-sm">{ant.puntos ?? 30} Puntos</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Tipo de Licencia</span>
+                        <span className="font-medium text-zinc-200">{ant.tipoLicencia || 'Tipo B (Particular)'}</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Citaciones / Multas Pendientes</span>
+                        <span className="font-medium text-zinc-200">{ant.totalMultas ?? 0} Citaciones</span>
+                      </div>
+
+                      <div className="bg-zinc-950/60 p-3 rounded-lg border border-zinc-800/60">
+                        <span className="text-zinc-500 block">Valor Pendiente de Pago</span>
+                        <span className="font-semibold text-zinc-200">${ant.valorPendientePago ?? '0.00'}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-xs text-zinc-400 bg-zinc-950 border border-zinc-800 rounded-lg">
+                    No se registra infracciones ni citaciones pendientes en la Agencia Nacional de Tránsito (ANT).
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         )}
       </main>
